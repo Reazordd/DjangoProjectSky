@@ -1,18 +1,22 @@
-from django.http import HttpResponse, JsonResponse
-
+from django.http import JsonResponse, HttpResponse
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.views.generic import DetailView
+from django.shortcuts import get_object_or_404
 from vacancies.models import Vacancy
-
+import json
 
 def hello(request):
     return HttpResponse("Hello world")
 
-def index(request):
-    if request.method == "GET":
+@method_decorator(csrf_exempt, name="dispatch")
+class VacancyView(View):
+    def get(self, request):
         vacancies = Vacancy.objects.all()
-
         search_text = request.GET.get("text", None)
         if search_text:
-            vacancies = vacancies.filter(text=search_text )
+            vacancies = vacancies.filter(text__icontains=search_text)
 
         response = []
         for vacancy in vacancies:
@@ -20,18 +24,21 @@ def index(request):
                 "id": vacancy.id,
                 "text": vacancy.text
             })
-
         return JsonResponse(response, safe=False)
 
-   # return None
+    def post(self, request):
+        vacancy_data = json.loads(request.body)
+        vacancy = Vacancy()
+        vacancy.text = vacancy_data["text"]
+        vacancy.save()
+        return JsonResponse({
+            "id": vacancy.id,
+            "text": vacancy.text
+        })
 
-def get(request, vacancy_id):
-    if request.method == "GET":
-        try:
-            vacancy = Vacancy.objects.get(pk=vacancy_id)
-        except Vacancy.DoesNotExist:
-            return JsonResponse({"error": "Not found"}, status=404)
-
+class VacancyDetailView(View):
+    def get(self, request, vacancy_id):
+        vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
         return JsonResponse({
             "id": vacancy.id,
             "text": vacancy.text
